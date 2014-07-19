@@ -19,7 +19,7 @@ void setup() {
   strip.begin();
   strip.show();  //turn pixels off
   
-  Serial.begin(9600);
+  //Serial.begin(9600);
 }
 
 void loop() {
@@ -29,7 +29,7 @@ void loop() {
   //send data to neopixels
   //strip.show();
   
-  centerWipeFade(strip.Color(100, 0, 0), 35);
+  centerWipeFade(strip.Color(100, 0, 0), 30);
   delay(1500);
   clearDisplay();
   delay(1500);
@@ -40,46 +40,48 @@ void loop() {
 void centerWipeFade(uint32_t c, uint8_t wait){
   //
   int red = 127;
-  int red_fade = 15;
+  int red_fade = 13;
   int tmp_red = red;
   int fade_length = red/red_fade;
   int offset = strip.numPixels()/2;
-  int loop_cycles = offset+fade_length+1;
+  int loop_cycles = offset+fade_length+2;
+  int addr = 0;
   
   
   //primary fade loop
   for(int i=0; i<loop_cycles; i++) {
     
     //positive half
-    for(int j=(i+offset); j>=offset; j--) {
-      tmp_red = red-(((i+offset)-j)*red_fade);
+    for(int j=0; j<=i; j++) {
+      tmp_red = red-(j*red_fade);
       //prevent a "negative" intensity from being written
       if(tmp_red < 0){
         tmp_red = 0;
       }
-      //only write to pixel if it physically exists
-      if(j<strip.numPixels()){
-        strip.setPixelColor(j, strip.Color(tmp_red, 0, 0));
+      //calculate pixel address
+      addr = i + offset - j -1;
+      //only write to pixel if it physically exists on positive half
+      if(addr>=offset && addr<=15){
+        strip.setPixelColor(addr, strip.Color(tmp_red, 0, 0));
         //strip.setPixelColor(j-8, strip.Color(tmp_red, 0, 0));
       }
     }
     
     //negative half
-    for(int k=offset-i; k<loop_cycles; k++) {
-      Serial.print(k);
-      Serial.print(", ");
-      tmp_red = red-((k)*red_fade);
+    for(int k=0; k<=i; k++) {
+      tmp_red = red-(k*red_fade);
       //prevent a "negative" intensity from being written
       if(tmp_red < 0){
         tmp_red = 0;
       }
-      //only write to the negative pixels
-      if(k<offset) {
-        strip.setPixelColor(k, strip.Color(tmp_red, 0, 0));
+      //calculate pixel address
+      addr = offset - i + k;
+      //only write to the negative pixels that actually exist
+      if(addr>=0 && addr<=offset) {
+        strip.setPixelColor(addr, strip.Color(tmp_red, 0, 0));
       }
      
     }
-    Serial.println(" ");
     
     strip.show();
     delay(wait);
