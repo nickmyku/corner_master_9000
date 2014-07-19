@@ -58,7 +58,7 @@ void centerWipeFade(uint32_t c, uint8_t wait){
       }
     }
     //negative half
-    for(int k=offset-i; k<loop_cycles; k++) {
+    for(int k=offset-i; k<(loop_cycles+offset); k++) {
       tmp_red = red-(k*red_fade);
       //prevent a "negative" intensity from being written
       if(tmp_red < 0){
