@@ -2,11 +2,17 @@
 //Nicholas Mykulowycz
 //Created jul 15, 2014
 
-#include <Adafruit_NeoPixel.h>
+#include <Wire.h>                 //i2c library
+#include <Adafruit_Sensor.h>      //generic sensor library
+#include <Adafruit_NeoPixel.h>    //for display
+#include <Adafruit_ADXL345_U.h>   //for acceleraometer
 
 #define DISPLAY_PIN 6
 #define HIGH_INTENSITY 127
 #define MAX_FORCE 1.5
+
+/* Assign a unique ID to this sensor at the same time */
+Adafruit_ADXL345_Unified accel = Adafruit_ADXL345_Unified(12345);
 
 // Parameter 1 = number of pixels in strip
 // Parameter 2 = Arduino pin number (most are valid)
@@ -18,12 +24,24 @@
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(16, DISPLAY_PIN, NEO_GRB + NEO_KHZ800);
 
 int offset = strip.numPixels()/2;
+float avg_val = 0;
 
 void setup() {
   //intitialize strip
   strip.begin();
   //send all off to strip
   strip.show();
+  
+   /* Initialise the sensor */
+  if(!accel.begin())
+  {
+    /* There was a problem detecting the ADXL345 ... check your connections */
+    Serial.println("Ooops, no ADXL345 detected ... Check your wiring!");
+    while(1);
+  }
+  
+  /* Set the range to whatever is appropriate for your project */
+  accel.setRange(ADXL345_RANGE_2_G);
   
   //start of fade sequence
   centerWipeFade(HIGH_INTENSITY, 30);
@@ -38,14 +56,25 @@ void setup() {
     delay(50);
     strip.show();
   }
-    
-    
-  
   
   //Serial.begin(9600);
 }
 
 void loop() {
+  
+  //Get a new sensor event 
+  sensors_event_t event; 
+  accel.getEvent(&event);
+  
+  /* Get a new acceleration */ 
+  //avg_val = getAverageForce(3, 'x');
+  avg_val = event.acceleration.x;
+  
+  //set the display to corresponding x force value
+  setForceDisplay(avg_val);
+  
+  delay(75);
+  
   //set neopixel parameters
   //strip.setPixelColor(8, strip.Color(100,0,0));
   
@@ -117,15 +146,105 @@ void centerWipeFade(uint8_t red, uint8_t wait){
 //write to neopixel display
 void setForceDisplay(float force_value) {
   //figure out value corresponding to a single pixel
-  float segment = MAX_FORCE/offset;
+  float segment_value = MAX_FORCE/offset;
+  float g_force_value = force_value/9.8;
+  float tmp_force_value= 0;
+  int pixels = 0;
+  int full_red = HIGH_INTENSITY;
+  int tmp_red = 0;
+  int addr = 0;
+  
+  //calculate number of pixels to illuminate
+  pixels = abs(g_force_value/segment_value);
+  
+  //clear display but dont refresh
+  clearDisplay(false); 
+  
+  //if force value is fairly small then just illuminate center pixels
+  if(g_force_value < (segment_value) && g_force_value > (-1*segment_value)){   
+    //calculate intensity
+    tmp_red = full_red/4;
+    strip.setPixelColor(7, strip.Color(tmp_red, 0, 0));
+    strip.setPixelColor(8, strip.Color(tmp_red, 0, 0));
+  }   
+  
+  //if force value is positive illuminate positive half of display
+  else if(g_force_value > 0){
+    //cycle through entire display
+    for(int i=0; i<offset; i++){
+      //calculate pixel address
+      addr = i+offset;
+      //if pixel value is greater then loop index then pixel should be illuminated
+      if(pixels > i){
+        strip.setPixelColor(addr, strip.Color(full_red, 0, 0));
+      }
+      //if pixel is equal to index then set to partial brightness
+      /*
+      else if(pixels == i){
+        //calculate intermediate force
+        tmp_force_value = force_value-(i*segment_value);
+        //scale partial brigness to ratio of intermediate force over value of single segment
+        tmp_red = full_red*(tmp_force_value/segment_value);
+        //send data to pixel
+        strip.setPixelColor(addr, strip.Color(tmp_red, 0, 0));
+      }
+      */
+      //otherwise turn pixel off
+      else{
+        strip.setPixelColor(addr, strip.Color(0, 0, 0));
+      }
+    }
+    
+  }
+  
+  //if force value is negative illuminate negative half of display
+  else if(g_force_value < 0){
+    //cycle through entire display
+    for(int i=0; i<offset; i++){
+      //calculate pixel address
+      addr = offset-i-1;
+      //if pixel value is greater then loop index then pixel should be illuminated
+      if(pixels > i){
+        strip.setPixelColor(addr, strip.Color(full_red, 0, 0));
+      }
+      //otherwise turn pixel off
+      else{
+        strip.setPixelColor(addr, strip.Color(0, 0, 0));
+      }
+    }
+    
+  }
+  
+  //send data to display
+  strip.show();
   
   
 }
 
+float getAverageForce(int samples, char axis){
+  double total_value = 0;
+  float avg_value = 0;
+  
+  for(int i=0; i<samples; i++){
+    /* Get a new sensor event */ 
+    sensors_event_t event; 
+    accel.getEvent(&event);
+    //assing value to array
+    total_value += event.acceleration.x;
+  }
+  
+  //calculate average
+  avg_value = total_value/samples;
+  
+  return avg_value;  
+}
+
 //clears all LED states
-void clearDisplay() {
+void clearDisplay(boolean refresh) {
   for(int i=0; i<strip.numPixels(); i++) {
     strip.setPixelColor(i, strip.Color(0,0,0));
   }
-  strip.show();
+  if(refresh){
+    strip.show();
+  }
 }
